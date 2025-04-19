@@ -29,6 +29,7 @@ For example:
 - "python programming" and "coding in python" should both be normalized to "Python Programming"
 
 Return only the normalized topic as plain text, without any additional explanations or formatting.
+And make sure the topics are related to apps which are running as main in screen
 
 Topic to normalize: {topic}
 """
