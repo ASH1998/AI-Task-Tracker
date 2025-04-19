@@ -2,16 +2,18 @@ import time
 import logging
 from datetime import datetime
 import os
+from dotenv import load_dotenv
 
 from screenshot_capture import take_screenshot
 from image_analysis import analyze_screenshot
 from data_storage import save_activity
 from utils import get_active_window_title
 
-# --- Configuration ---
-TRACKING_INTERVAL_SECONDS = 300 # 5 minutes
-MAX_RETRIES = 3 # Max retries for screenshot or analysis failure
-RETRY_DELAY_SECONDS = 10 # Delay between retries
+# --- Load Configuration from .env ---
+load_dotenv()
+TRACKING_INTERVAL_SECONDS = int(os.getenv('TRACKING_INTERVAL_SECONDS', 120))
+MAX_RETRIES = int(os.getenv('MAX_RETRIES', 3))
+RETRY_DELAY_SECONDS = int(os.getenv('RETRY_DELAY_SECONDS', 10))
 
 # --- Logging Setup ---
 LOG_DIR = "logs"
