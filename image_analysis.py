@@ -34,6 +34,9 @@ give me three things:
 2. Main topic (no more than 5 words)
 3. short description
 give this as json with keys "crisp_description", "main_topic", "short_description"
+
+Make sure the main topic is related to apps which are running as main in screen. 
+and make sure the json is valid and well formatted
 """
 
 # --- Client Initialization ---
