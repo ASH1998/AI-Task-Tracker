@@ -3,6 +3,7 @@ import base64
 import json
 import logging
 from openai import AzureOpenAI, OpenAI # Use AzureOpenAI if using Azure endpoint
+from topic_normalizer import normalize_topic  # Import the topic normalizer
 
 # Load environment variables (important: create a .env file)
 from dotenv import load_dotenv
@@ -100,22 +101,18 @@ def analyze_screenshot(image_path):
     try:
         logging.info(f"Sending request to LLM for image: {os.path.basename(image_path)}")
         if USE_AZURE:
-            # test just to see if it works for text only
-            messages = [{"role": "user", "content": LLM_PROMPT}]
-            
-            
             response = client.chat.completions.create(
                 model=AZURE_DEPLOYMENT_NAME, # Use deployment name for Azure
                 messages=messages,
                 max_tokens=300,
-                # Consider adding response_format={"type": "json_object"} if API version supports it
+                response_format={"type": "json_object"} if AZURE_API_VERSION >= "2023-12-01-preview" else None
             )
         else:
              response = client.chat.completions.create(
                 model=OPENAI_MODEL,
                 messages=messages,
                 max_tokens=300,
-                # Consider adding response_format={"type": "json_object"} if API version supports it
+                response_format={"type": "json_object"} # Use this for newer OpenAI API versions
             )
 
         analysis_content = response.choices[0].message.content
@@ -134,6 +131,9 @@ def analyze_screenshot(image_path):
             analysis_json = json.loads(analysis_content)
             # Validate expected keys
             if all(k in analysis_json for k in ["crisp_description", "main_topic", "short_description"]):
+                 # Normalize the main_topic before returning
+                 if "main_topic" in analysis_json:
+                     analysis_json["main_topic"] = normalize_topic(analysis_json["main_topic"])
                  return analysis_json
             else:
                 logging.warning(f"LLM response JSON missing expected keys: {analysis_content}")
