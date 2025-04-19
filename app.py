@@ -45,15 +45,17 @@ else:
     st.sidebar.warning("Please select a valid date range (start and end).")
     df_filtered = df.copy() # Show all data if range is invalid
 
-# App Name Filter
-app_names = sorted(df_filtered['AppName'].unique())
-selected_apps = st.sidebar.multiselect("Filter by Application", options=app_names, default=app_names)
-df_filtered = df_filtered[df_filtered['AppName'].isin(selected_apps)]
-
 # Main Topic Filter
 topics = sorted(df_filtered['MainTopic'].unique())
-selected_topics = st.sidebar.multiselect("Filter by Main Topic", options=topics, default=topics)
-df_filtered = df_filtered[df_filtered['MainTopic'].isin(selected_topics)]
+topics_with_all = ["Select All"] + topics  # Add "Select All" option
+selected_topics = st.sidebar.multiselect("Filter by Main Topic", options=topics_with_all, default=["Select All"])
+
+if "Select All" in selected_topics:
+    # Keep all topics if "Select All" is selected
+    pass
+else:
+    # Filter by selected topics
+    df_filtered = df_filtered[df_filtered['MainTopic'].isin(selected_topics)]
 
 
 if df_filtered.empty and not df.empty:
@@ -64,95 +66,99 @@ elif df_filtered.empty:
      st.stop()
 
 
+# Create tabs for analysis and screenshot viewer
+analysis_tab, screenshot_tab = st.tabs(["Analysis", "Screenshot Viewer"])
+
 # --- Visualizations ---
-st.header("Analysis")
+with analysis_tab:
+    st.header("Analysis")
 
-# 1. Time Spent per Application (Approximate)
-st.subheader("Approximate Time Spent per Application")
-# Calculate time difference between consecutive entries for the *same* app
-# This is an approximation, assuming continuous work between screenshots of the same app
-df_filtered = df_filtered.sort_values(by=['AppName', 'Timestamp'])
-df_filtered['TimeDiff'] = df_filtered.groupby('AppName')['Timestamp'].diff()
+    # 1. Time Spent per Topic (Approximate)
+    st.subheader("Approximate Time Spent per Topic")
+    # Calculate time difference between consecutive entries for the *same* topic
+    # This is an approximation, assuming continuous work between screenshots of the same topic
+    df_filtered = df_filtered.sort_values(by=['MainTopic', 'Timestamp'])
+    df_filtered['TimeDiff'] = df_filtered.groupby('MainTopic')['Timestamp'].diff()
 
-# Define a reasonable max duration between screenshots to consider it "continuous"
-# e.g., if screenshots are 5 mins apart, maybe max diff is 10 mins
-MAX_CONTINUOUS_MINUTES = 10 # Adjust as needed
-df_filtered['Duration'] = df_filtered['TimeDiff'].apply(
-    lambda x: x.total_seconds() / 60 if pd.notnull(x) and x <= pd.Timedelta(minutes=MAX_CONTINUOUS_MINUTES) else 0
-)
-
-app_time = df_filtered.groupby('AppName')['Duration'].sum().reset_index()
-app_time = app_time[app_time['Duration'] > 0] # Filter out apps with no calculated duration
-app_time = app_time.sort_values(by='Duration', ascending=False)
-
-if not app_time.empty:
-    fig_app_time = px.bar(app_time, x='AppName', y='Duration', title="Time per Application (Minutes)",
-                          labels={'Duration': 'Total Minutes (Approx.)', 'AppName': 'Application'})
-    st.plotly_chart(fig_app_time, use_container_width=True)
-else:
-    st.info("Not enough consecutive data points to estimate time spent per application with current filters.")
-
-
-# 2. Activity Count per Main Topic
-st.subheader("Activity Count per Main Topic")
-topic_counts = df_filtered['MainTopic'].value_counts().reset_index()
-topic_counts.columns = ['MainTopic', 'Count']
-topic_counts = topic_counts.sort_values(by='Count', ascending=False)
-
-if not topic_counts.empty:
-    fig_topic_counts = px.pie(topic_counts, names='MainTopic', values='Count', title="Activities per Main Topic")
-    st.plotly_chart(fig_topic_counts, use_container_width=True)
-else:
-     st.info("No topic data available for the selected filters.")
-
-
-# 3. Timeline of Activities
-st.subheader("Activity Timeline")
-if not df_filtered.empty:
-    # Ensure ScreenshotFile column exists
-    if 'ScreenshotFile' not in df_filtered.columns:
-        df_filtered['ScreenshotFile'] = None # Add dummy column if missing
-
-    # Create hover text
-    df_filtered['HoverText'] = df_filtered.apply(
-        lambda row: f"Time: {row['Timestamp'].strftime('%H:%M:%S')}<br>"
-                    f"App: {row['AppName']}<br>"
-                    f"Topic: {row['MainTopic']}<br>"
-                    f"Desc: {row['CrispDescription']}",
-        axis=1
+    # Define a reasonable max duration between screenshots to consider it "continuous"
+    MAX_CONTINUOUS_MINUTES = 10 # Adjust as needed
+    df_filtered['Duration'] = df_filtered['TimeDiff'].apply(
+        lambda x: x.total_seconds() / 60 if pd.notnull(x) and x <= pd.Timedelta(minutes=MAX_CONTINUOUS_MINUTES) else 0
     )
-    fig_timeline = px.scatter(df_filtered, x='Timestamp', y='AppName', color='MainTopic',
-                              title="Activity Timeline by Application and Topic",
-                              hover_data=['HoverText'],
-                              labels={'AppName': 'Application', 'Timestamp': 'Time', 'MainTopic': 'Topic'})
-    fig_timeline.update_layout(xaxis_title="Time", yaxis_title="Application")
-    st.plotly_chart(fig_timeline, use_container_width=True)
-else:
-    st.info("No data points available for the timeline with current filters.")
+
+    topic_time = df_filtered.groupby('MainTopic')['Duration'].sum().reset_index()
+    topic_time = topic_time[topic_time['Duration'] > 0] # Filter out topics with no calculated duration
+    topic_time = topic_time.sort_values(by='Duration', ascending=False)
+
+    if not topic_time.empty:
+        fig_topic_time = px.bar(topic_time, x='MainTopic', y='Duration', title="Time per Topic (Minutes)",
+                              labels={'Duration': 'Total Minutes (Approx.)', 'MainTopic': 'Topic'})
+        st.plotly_chart(fig_topic_time, use_container_width=True)
+    else:
+        st.info("Not enough consecutive data points to estimate time spent per topic with current filters.")
+
+
+    # 2. Activity Count per Main Topic
+    st.subheader("Activity Count per Main Topic")
+    topic_counts = df_filtered['MainTopic'].value_counts().reset_index()
+    topic_counts.columns = ['MainTopic', 'Count']
+    topic_counts = topic_counts.sort_values(by='Count', ascending=False)
+
+    if not topic_counts.empty:
+        fig_topic_counts = px.pie(topic_counts, names='MainTopic', values='Count', title="Activities per Main Topic")
+        st.plotly_chart(fig_topic_counts, use_container_width=True)
+    else:
+         st.info("No topic data available for the selected filters.")
+
+
+    # 3. Timeline of Activities
+    st.subheader("Activity Timeline")
+    if not df_filtered.empty:
+        # Ensure ScreenshotFile column exists
+        if 'ScreenshotFile' not in df_filtered.columns:
+            df_filtered['ScreenshotFile'] = None # Add dummy column if missing
+
+        # Create hover text
+        df_filtered['HoverText'] = df_filtered.apply(
+            lambda row: f"Time: {row['Timestamp'].strftime('%H:%M:%S')}<br>"
+                        f"App: {row['AppName']}<br>"
+                        f"Topic: {row['MainTopic']}<br>"
+                        f"Desc: {row['CrispDescription']}",
+            axis=1
+        )
+        fig_timeline = px.scatter(df_filtered, x='Timestamp', y='MainTopic', 
+                                  title="Activity Timeline by Main Topic",
+                                  hover_data=['HoverText'],
+                                  labels={'MainTopic': 'Topic', 'Timestamp': 'Time'})
+        fig_timeline.update_layout(xaxis_title="Time", yaxis_title="Topic")
+        st.plotly_chart(fig_timeline, use_container_width=True)
+    else:
+        st.info("No data points available for the timeline with current filters.")
 
 
 # --- Screenshot Viewer ---
-st.header("Screenshot Viewer")
-if 'ScreenshotFile' in df_filtered.columns and not df_filtered['ScreenshotFile'].isnull().all():
-    # Select a record to view screenshot
-    record_options = df_filtered.apply(lambda row: f"{row['Timestamp'].strftime('%Y-%m-%d %H:%M:%S')} - {row['AppName']} ({row['MainTopic']})", axis=1)
-    selected_record = st.selectbox("Select activity record to view screenshot:", options=record_options)
+with screenshot_tab:
+    st.header("Screenshot Viewer")
+    if 'ScreenshotFile' in df_filtered.columns and not df_filtered['ScreenshotFile'].isnull().all():
+        # Select a record to view screenshot
+        record_options = df_filtered.apply(lambda row: f"{row['Timestamp'].strftime('%Y-%m-%d %H:%M:%S')} - {row['AppName']} ({row['MainTopic']})", axis=1)
+        selected_record = st.selectbox("Select activity record to view screenshot:", options=record_options)
 
-    if selected_record:
-        # Find the corresponding row
-        selected_row = df_filtered[record_options == selected_record].iloc[0]
-        screenshot_filename = selected_row['ScreenshotFile']
-        if screenshot_filename and isinstance(screenshot_filename, str):
-            screenshot_path = os.path.join(SCREENSHOT_DIR, screenshot_filename)
-            if os.path.exists(screenshot_path):
-                st.image(screenshot_path, caption=f"Screenshot for: {selected_record}", use_container_width=True)
-                st.write(f"**Crisp Description:** {selected_row['CrispDescription']}")
-                st.write(f"**Short Description:** {selected_row['ShortDescription']}")
+        if selected_record:
+            # Find the corresponding row
+            selected_row = df_filtered[record_options == selected_record].iloc[0]
+            screenshot_filename = selected_row['ScreenshotFile']
+            if screenshot_filename and isinstance(screenshot_filename, str):
+                screenshot_path = os.path.join(SCREENSHOT_DIR, screenshot_filename)
+                if os.path.exists(screenshot_path):
+                    st.image(screenshot_path, caption=f"Screenshot for: {selected_record}", use_container_width=True)
+                    st.write(f"**Crisp Description:** {selected_row['CrispDescription']}")
+                    st.write(f"**Short Description:** {selected_row['ShortDescription']}")
+                else:
+                    st.warning(f"Screenshot file not found: {screenshot_path}")
             else:
-                st.warning(f"Screenshot file not found: {screenshot_path}")
-        else:
-            st.info("No screenshot file recorded for this entry.")
+                st.info("No screenshot file recorded for this entry.")
 
-else:
-    st.info("No screenshots available or 'ScreenshotFile' column missing in the filtered data.")
+    else:
+        st.info("No screenshots available or 'ScreenshotFile' column missing in the filtered data.")
 
