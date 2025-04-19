@@ -1,0 +1,7 @@
+Pillow
+openai
+pandas
+streamlit
+python-dotenv
+pygetwindow
+plotly
